@@ -1,0 +1,1468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OptiJitter: Deep-Space Optical Comm Pointing Stabilizer</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <!-- MathJax v3 Pre-configuration & Loader -->
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']]
+      },
+      svg: { fontCache: 'global' }
+    };
+  </script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #03050a;
+      color: #e2e8f0;
+      overflow-x: hidden;
+    }
+    .font-mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .formula-box {
+      background-color: #020617;
+      border: 1px solid #1e293b;
+      padding: 0.85rem;
+      border-radius: 0.5rem;
+      color: #38bdf8;
+      overflow-x: auto;
+      margin-top: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+    /* Glow utilities */
+    .glow-cyan {
+      box-shadow: 0 0 20px rgba(6, 182, 212, 0.25);
+    }
+    .glow-rose {
+      box-shadow: 0 0 20px rgba(244, 63, 94, 0.3);
+    }
+    /* Custom scrollbars */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #03050a;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1e293b;
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #334155;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col bg-[#03050a] text-slate-100 antialiased selection:bg-cyan-500 selection:text-black">
+
+  <!-- Top Navigation & System Status Bar -->
+  <header class="border-b border-slate-800 bg-slate-950/80 backdrop-blur-md sticky top-0 z-50 px-4 lg:px-8 py-3.5 flex flex-wrap items-center justify-between gap-4">
+    <div class="flex items-center space-x-3">
+      <div class="h-9 w-9 rounded-lg bg-gradient-to-tr from-cyan-600 via-indigo-600 to-violet-500 flex items-center justify-center p-0.5 shadow-lg shadow-cyan-950">
+        <div class="w-full h-full bg-[#03050a] rounded-[6px] flex items-center justify-center">
+          <i data-lucide="radio-tower" class="w-5 h-5 text-cyan-400"></i>
+        </div>
+      </div>
+      <div>
+        <div class="flex items-center space-x-2">
+          <span class="text-xs uppercase tracking-widest px-2 py-0.5 rounded bg-cyan-950/80 text-cyan-400 font-mono font-semibold border border-cyan-800/60">NASA SCaN / DSOC</span>
+          <span class="text-xs text-slate-400 font-mono hidden sm:inline">SBIR Topic S7.01-8421</span>
+        </div>
+        <h1 class="text-base sm:text-lg font-bold tracking-tight text-white flex items-center gap-2">
+          OptiJitter <span class="text-xs font-normal text-slate-400 hidden md:inline">| Deep-Space Optical Comm Pointing Stabilizer</span>
+        </h1>
+      </div>
+    </div>
+
+    <!-- Center Tab Nav -->
+    <nav class="flex items-center space-x-1 bg-slate-900/90 border border-slate-800 p-1 rounded-xl text-xs sm:text-sm">
+      <button id="tabBtnSim" onclick="switchTab('sim')" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition-all text-white bg-slate-800 shadow-sm border border-slate-700">
+        <i data-lucide="activity" class="w-4 h-4 text-cyan-400"></i>
+        <span>Live Telemetry HUD</span>
+      </button>
+      <button id="tabBtnPhysics" onclick="switchTab('physics')" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition-all text-slate-400 hover:text-slate-200">
+        <i data-lucide="cpu" class="w-4 h-4 text-violet-400"></i>
+        <span>Physics & Control Model</span>
+      </button>
+      <button id="tabBtnProposal" onclick="switchTab('proposal')" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition-all text-slate-400 hover:text-slate-200">
+        <i data-lucide="file-check-2" class="w-4 h-4 text-emerald-400"></i>
+        <span>$225k NASA SBIR / STTR</span>
+      </button>
+      <button id="tabBtnARR" onclick="switchTab('arr')" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition-all text-slate-400 hover:text-slate-200">
+        <i data-lucide="trending-up" class="w-4 h-4 text-amber-400"></i>
+        <span>Civil ARR ($214M)</span>
+      </button>
+    </nav>
+
+    <!-- Global Telemetry Badges -->
+    <div class="flex items-center space-x-3 font-mono text-xs">
+      <div id="rxLockBadge" class="flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-emerald-950/80 text-emerald-400 border border-emerald-800">
+        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+        <span class="font-bold">GROUND RX: LOCKED</span>
+      </div>
+      <div class="hidden xl:flex items-center space-x-2 text-slate-400">
+        <span>LINK: <span class="text-cyan-400 font-semibold" id="topDataRate">267.4 Mbps</span></span>
+        <span>•</span>
+        <span>BER: <span class="text-emerald-400 font-semibold" id="topBER">1.2e-7</span></span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="flex-1 max-w-[1680px] w-full mx-auto p-3 sm:p-5 lg:p-6 space-y-6">
+
+    <!-- ========================================================================= -->
+    <!-- TAB 1: LIVE SIMULATION & TELEMETRY HUD                                     -->
+    <!-- ========================================================================= -->
+    <section id="viewSim" class="space-y-5">
+      
+      <!-- Top Alert & Target Description Banner -->
+      <div class="bg-gradient-to-r from-slate-900/90 via-slate-900/50 to-cyan-950/30 border border-slate-800/80 rounded-xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div class="flex items-start gap-3">
+          <div class="p-2 rounded-lg bg-cyan-950 text-cyan-400 border border-cyan-800/60 mt-0.5">
+            <i data-lucide="crosshair" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-mono font-semibold px-2 py-0.5 rounded bg-cyan-900/50 text-cyan-300 border border-cyan-700/50">MISSION: MARS-EARTH OPTICAL DOWNLINK (1.2 AU)</span>
+              <span class="text-xs text-slate-400 font-mono">1550 nm EDFA Transmitter</span>
+            </div>
+            <p class="text-xs sm:text-sm text-slate-300 mt-1 max-w-4xl">
+              Spacecraft reaction wheel micro-vibrations generate high-frequency structural acceleration ($a$), while laser diode thermal variations drift the optical emission wavelength ($\lambda$).
+              OptiJitter runs closed-loop concurrent Piezo Fast-Steering Mirror (FSM, 10 kHz) and TEC thermoelectric cooler loop (50 Hz) actuation to maintain peak Earth irradiance.
+            </p>
+          </div>
+        </div>
+        <div class="flex items-center gap-3 w-full md:w-auto justify-end">
+          <button id="toggleLoopBtn" onclick="toggleClosedLoop()" class="w-full sm:w-auto px-4 py-2 rounded-lg text-xs font-mono font-bold flex items-center justify-center gap-2 transition-all bg-cyan-600 hover:bg-cyan-500 text-black shadow-lg shadow-cyan-950">
+            <i data-lucide="shield-check" class="w-4 h-4"></i>
+            <span id="loopStatusText">CLOSED-LOOP CONTROL: ACTIVE</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Main Interactive Grid: Hardware Canvas + Phase-Space Diagnostic Plot -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+        
+        <!-- Left: Interactive Canvas (Deep Space Bench & Spot Position) -->
+        <div class="lg:col-span-7 bg-slate-900/50 border border-slate-800/90 rounded-2xl p-4 flex flex-col justify-between backdrop-blur shadow-xl relative overflow-hidden">
+          <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center gap-2">
+              <i data-lucide="aperture" class="w-4 h-4 text-cyan-400"></i>
+              <h2 class="text-xs sm:text-sm font-semibold tracking-wide uppercase text-slate-200">
+                Deep Space Optical Comm Bench & Spot Tracker
+              </h2>
+            </div>
+            <div class="flex items-center gap-2 text-xs font-mono">
+              <span class="text-slate-400">Jitter:</span>
+              <span id="canvasJitterVal" class="text-cyan-300 font-bold">1.4 μrad RMS</span>
+              <span class="text-slate-600">|</span>
+              <span class="text-slate-400">Palomar Coupling:</span>
+              <span id="canvasCouplingVal" class="text-emerald-400 font-bold">96.8%</span>
+            </div>
+          </div>
+
+          <!-- The Hardware Canvas -->
+          <div class="relative w-full h-[320px] sm:h-[360px] bg-[#02050b] rounded-xl border border-slate-800/80 overflow-hidden">
+            <canvas id="opticsCanvas" class="w-full h-full block"></canvas>
+            
+            <!-- Canvas Overlay UI -->
+            <div class="absolute top-3 left-3 flex flex-col gap-1.5 pointer-events-none font-mono text-[11px]">
+              <div class="bg-slate-950/80 backdrop-blur px-2.5 py-1 rounded border border-slate-800 text-slate-300 flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
+                <span>FSM Bandwidth: 10.4 kHz Piezo DSP</span>
+              </div>
+              <div class="bg-slate-950/80 backdrop-blur px-2.5 py-1 rounded border border-slate-800 text-slate-300 flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-violet-400"></span>
+                <span>TEC Servo Bandwidth: 45 Hz PWM</span>
+              </div>
+            </div>
+
+            <div class="absolute bottom-3 right-3 pointer-events-none font-mono text-[10px] bg-slate-950/85 backdrop-blur px-3 py-1.5 rounded border border-slate-800 text-slate-400 flex flex-col gap-0.5 text-right">
+              <div>Ground Collector: Hale 5.0m Optical Aperture</div>
+              <div>Filter Passband FWHM: <span class="text-cyan-300 font-semibold">0.12 nm (120 pm)</span></div>
+            </div>
+          </div>
+
+          <!-- Telemetry Ticker Strip -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3 pt-3 border-t border-slate-800 font-mono text-xs">
+            <div class="bg-slate-950/70 p-2 rounded-lg border border-slate-800/70">
+              <span class="text-slate-500 block text-[10px]">STRUCTURAL ACCEL (a)</span>
+              <span id="metricAccel" class="text-cyan-400 font-bold text-sm">0.082 g</span>
+            </div>
+            <div class="bg-slate-950/70 p-2 rounded-lg border border-slate-800/70">
+              <span class="text-slate-500 block text-[10px]">OPTICAL WAVELENGTH (λ)</span>
+              <span id="metricWavelength" class="text-violet-300 font-bold text-sm">1550.02 nm</span>
+            </div>
+            <div class="bg-slate-950/70 p-2 rounded-lg border border-slate-800/70">
+              <span class="text-slate-500 block text-[10px]">POINTING ERROR (θ)</span>
+              <span id="metricPointing" class="text-emerald-400 font-bold text-sm">1.18 μrad</span>
+            </div>
+            <div class="bg-slate-950/70 p-2 rounded-lg border border-slate-800/70">
+              <span class="text-slate-500 block text-[10px]">EARTH IRRADIANCE</span>
+              <span id="metricIrradiance" class="text-amber-300 font-bold text-sm">94.4 pW/m²</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Primary Diagnostic Phase-Space Chart (Chart.js) -->
+        <div class="lg:col-span-5 bg-slate-900/50 border border-slate-800/90 rounded-2xl p-4 flex flex-col justify-between backdrop-blur shadow-xl">
+          <div class="flex items-center justify-between mb-2">
+            <div>
+              <div class="flex items-center gap-2">
+                <i data-lucide="orbit" class="w-4 h-4 text-violet-400"></i>
+                <h2 class="text-xs sm:text-sm font-semibold tracking-wide uppercase text-slate-200">
+                  Phase-Space: Wavelength ($\lambda$) vs. Acceleration ($a$)
+                </h2>
+              </div>
+              <p class="text-[11px] text-slate-400 mt-0.5">Dual-Observer Trajectory with Ground Filter Passband Corridor</p>
+            </div>
+            <span id="trajStateBadge" class="text-[10px] font-mono font-semibold px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">
+              NOMINAL TRACK
+            </span>
+          </div>
+
+          <!-- Phase-Space Scatter Chart Container -->
+          <div class="relative w-full h-[280px] sm:h-[310px]">
+            <canvas id="phaseSpaceChart"></canvas>
+          </div>
+
+          <div class="mt-2 text-[11px] text-slate-400 bg-slate-950/60 p-2 rounded-lg border border-slate-800/70 font-mono flex items-center justify-between">
+            <span>Passband Limit: $\lambda \in [1549.94, 1550.06]\text{ nm}$</span>
+            <span class="text-rose-400">Jitter Tripwire: $a > 0.40\text{ g}$</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Secondary Telemetry Plots + Closed-Loop Disturbance Injection Panel -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+        
+        <!-- Bottom Left: Time-Series Dual Telemetry -->
+        <div class="lg:col-span-7 grid grid-cols-1 md:grid-cols-2 gap-4">
+          
+          <!-- Plot A: Pointing Jitter Time-Series -->
+          <div class="bg-slate-900/50 border border-slate-800/90 rounded-xl p-3.5 backdrop-blur flex flex-col justify-between">
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                <i data-lucide="waves" class="w-3.5 h-3.5 text-cyan-400"></i>
+                Beam Jitter vs Time ($\mu\text{rad}$)
+              </span>
+              <span class="text-[10px] font-mono text-cyan-400" id="liveJitterTimeVal">1.2 μrad</span>
+            </div>
+            <div class="h-[140px] w-full">
+              <canvas id="jitterHistoryChart"></canvas>
+            </div>
+          </div>
+
+          <!-- Plot B: Ground Link SNR / Downlink Bitrate -->
+          <div class="bg-slate-900/50 border border-slate-800/90 rounded-xl p-3.5 backdrop-blur flex flex-col justify-between">
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                <i data-lucide="signal" class="w-3.5 h-3.5 text-emerald-400"></i>
+                Link Margin & Transmission ($\text{dB}$)
+              </span>
+              <span class="text-[10px] font-mono text-emerald-400" id="liveSNRTimeVal">+8.4 dB</span>
+            </div>
+            <div class="h-[140px] w-full">
+              <canvas id="snrHistoryChart"></canvas>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Bottom Right: Dynamic Environmental Sliders & Fault Injection Panel -->
+        <div class="lg:col-span-5 bg-slate-900/50 border border-slate-800/90 rounded-2xl p-4 backdrop-blur shadow-xl space-y-4">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <i data-lucide="sliders" class="w-4 h-4 text-cyan-400"></i>
+              <h3 class="text-xs sm:text-sm font-semibold tracking-wide uppercase text-slate-200">
+                Disturbance & Actuator Injection Panel
+              </h3>
+            </div>
+            <button onclick="resetSliders()" class="text-[11px] font-mono text-slate-400 hover:text-cyan-400 transition-colors">
+              Reset Nominal
+            </button>
+          </div>
+
+          <!-- Sliders Grid -->
+          <div class="space-y-3 font-mono text-xs">
+            <div>
+              <div class="flex justify-between text-slate-300 mb-1">
+                <span>Reaction Wheel Imbalance (RPM harmonic):</span>
+                <span id="sliderWheelVal" class="text-cyan-400 font-bold">2,400 RPM</span>
+              </div>
+              <input type="range" id="sliderWheel" min="600" max="6000" step="100" value="2400" oninput="updateDisturbances()"
+                     class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-400">
+            </div>
+
+            <div>
+              <div class="flex justify-between text-slate-300 mb-1">
+                <span>Spacecraft Solar Thermal Excursion ($\Delta T$):</span>
+                <span id="sliderThermalVal" class="text-violet-400 font-bold">+0.4 °C</span>
+              </div>
+              <input type="range" id="sliderThermal" min="-5.0" max="5.0" step="0.1" value="0.4" oninput="updateDisturbances()"
+                     class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-violet-400">
+            </div>
+
+            <div>
+              <div class="flex justify-between text-slate-300 mb-1">
+                <span>Earth Atmospheric Seeing / Wander ($r_0$ Fried param):</span>
+                <span id="sliderAtmVal" class="text-amber-400 font-bold">12.0 cm</span>
+              </div>
+              <input type="range" id="sliderAtm" min="3.0" max="25.0" step="0.5" value="12.0" oninput="updateDisturbances()"
+                     class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-400">
+            </div>
+          </div>
+
+          <!-- Fault Injection Action Buttons -->
+          <div class="pt-2 border-t border-slate-800/80 grid grid-cols-2 gap-2 font-mono text-[11px]">
+            <button onclick="injectWheelFault()" class="p-2 rounded-lg bg-rose-950/40 hover:bg-rose-900/50 text-rose-300 border border-rose-800/50 transition-all flex items-center justify-center gap-1.5">
+              <i data-lucide="zap-off" class="w-3.5 h-3.5"></i>
+              Wheel Bearing Glitch
+            </button>
+            <button onclick="injectThermalSnap()" class="p-2 rounded-lg bg-amber-950/40 hover:bg-amber-900/50 text-amber-300 border border-amber-800/50 transition-all flex items-center justify-center gap-1.5">
+              <i data-lucide="flame" class="w-3.5 h-3.5"></i>
+              Solar Eclipse Thermal Snap
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+    </section>
+
+    <!-- ========================================================================= -->
+    <!-- TAB 2: CORE PHYSICS & MATHEMATICAL MODEL                                  -->
+    <!-- ========================================================================= -->
+    <section id="viewPhysics" class="hidden space-y-6">
+      
+      <!-- Physics Intro Banner -->
+      <div class="border border-slate-800 bg-slate-900/60 rounded-2xl p-5 backdrop-blur">
+        <div class="flex items-center gap-3 mb-2">
+          <div class="p-2 rounded-lg bg-violet-950 text-violet-400 border border-violet-800">
+            <i data-lucide="brain" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h2 class="text-base sm:text-lg font-bold text-white">Mathematical Framework & Dual State Observer Inversion</h2>
+            <p class="text-xs sm:text-sm text-slate-400">
+              Concurrently solving high-frequency micro-vibrational steering perturbations and sub-nanometer quantum-well thermo-optic center wavelength drifts.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4 High-Density Physics & Hardware Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+        <!-- Card 1: Governing Laser Beam Propagation & Irradiance -->
+        <div class="bg-slate-900/50 border border-slate-800/90 rounded-2xl p-5 flex flex-col justify-between backdrop-blur">
+          <div>
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="text-sm font-semibold text-cyan-400 flex items-center gap-2">
+                <span class="w-6 h-6 rounded-md bg-cyan-950 border border-cyan-800 flex items-center justify-center text-xs">1</span>
+                Diffraction & Irradiance Degradation
+              </h3>
+              <span class="text-[11px] font-mono text-slate-500">Airy Disk & Strehl</span>
+            </div>
+            <p class="text-xs text-slate-300 leading-relaxed">
+              For a laser transmitter with aperture diameter $D_t$ operating at optical wavelength $\lambda$ across deep-space distance $Z$, the far-field beam divergence angle $\theta_{\text{div}}$ and peak center irradiance $I_0$ at the Earth receiver aperture are governed by:
+            </p>
+            <div class="formula-box">
+              $$I_0 = \frac{P_t \cdot \tau_t \cdot \pi D_t^2}{2 \lambda^2 Z^2} \exp\left( -2 \frac{\theta_{\text{jitter}}^2}{\theta_{\text{div}}^2} \right)$$
+            </div>
+            <p class="text-xs text-slate-400 leading-relaxed mt-2">
+              Where $\theta_{\text{jitter}}$ is the instantaneous pointing offset error vector. A structural acceleration spike exceeding $0.2\,\mu\text{rad}$ RMS reduces coupled photons into the ground collector below the threshold for pulse-position modulation (PPM-64) symbol demodulation.
+            </p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-slate-800 text-[11px] font-mono text-slate-500">
+            Governing Metric: Strehl Ratio $S \approx \exp\left(-\sigma_\phi^2\right) \ge 0.88$ requirement.
+          </div>
+        </div>
+
+        <!-- Card 2: Quantum-Well Thermo-Optic Wavelength Drift -->
+        <div class="bg-slate-900/50 border border-slate-800/90 rounded-2xl p-5 flex flex-col justify-between backdrop-blur">
+          <div>
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="text-sm font-semibold text-violet-400 flex items-center gap-2">
+                <span class="w-6 h-6 rounded-md bg-violet-950 border border-violet-800 flex items-center justify-center text-xs">2</span>
+                Thermo-Optic Emission Wavelength Drift
+              </h3>
+              <span class="text-[11px] font-mono text-slate-500">DFB / Seed Diode</span>
+            </div>
+            <p class="text-xs text-slate-300 leading-relaxed">
+              Distributed Feedback (DFB) laser master oscillators experience optical emission wavelength shifts via temperature-dependent refractive index variations ($dn/dT$) and lattice expansion in the InGaAsP quantum well:
+            </p>
+            <div class="formula-box">
+              $$\frac{d\lambda}{dT} = 2 \Lambda_{\text{grating}} \left( \frac{\partial n_{\text{eff}}}{\partial T} + n_{\text{eff}} \alpha_{\text{th}} \right) \approx 0.10\,\text{nm/}^\circ\text{C}$$
+            </div>
+            <p class="text-xs text-slate-400 leading-relaxed mt-2">
+              Earth ground station receivers (such as the Palomar 5-meter telescope) deploy ultra-narrowband Fabry-Pérot or volume holographic grating solar background rejection filters with a Full Width at Half Maximum ($\text{FWHM}$) of only $0.12\,\text{nm}$. A thermal drift of merely $\pm 0.8\,^\circ\text{C}$ shifts the signal completely out of the optical passband transmission window.
+            </p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-slate-800 text-[11px] font-mono text-slate-500">
+            Passband Profile: $T(\lambda) = \left[ 1 + \left( \frac{2(\lambda - \lambda_0)}{\Delta \lambda_{\text{FWHM}}} \right)^2 \right]^{-1}$.
+          </div>
+        </div>
+
+        <!-- Card 3: Dual-State Observer & Inversion Estimator -->
+        <div class="bg-slate-900/50 border border-slate-800/90 rounded-2xl p-5 flex flex-col justify-between backdrop-blur">
+          <div>
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="text-sm font-semibold text-emerald-400 flex items-center gap-2">
+                <span class="w-6 h-6 rounded-md bg-emerald-950 border border-emerald-800 flex items-center justify-center text-xs">3</span>
+                Dual Extended Kalman Filter Observer
+              </h3>
+              <span class="text-[11px] font-mono text-slate-500">10 kHz DSP Inversion</span>
+            </div>
+            <p class="text-xs text-slate-300 leading-relaxed">
+              OptiJitter combines a 3-axis high-bandwidth piezoelectric accelerometer cluster with an internal optical wavelength wavemeter (heterodyne Mach-Zehnder discriminator). The discrete state equation decouples vibrational force from thermal diffusion:
+            </p>
+            <div class="formula-box">
+              $$\hat{\mathbf{x}}_{k|k} = \hat{\mathbf{x}}_{k|k-1} + \mathbf{K}_k \left( \begin{bmatrix} a_{\text{piezo}} \\ \lambda_{\text{hetero}} \end{bmatrix}_k - \mathbf{H} \hat{\mathbf{x}}_{k|k-1} \right)$$
+            </div>
+            <p class="text-xs text-slate-400 leading-relaxed mt-2">
+              The high-speed state observer isolates harmonic disturbances caused by reaction wheel unbalance (e.g., $f_{\text{wheel}} = 120\,\text{Hz}$ and structural resonance at $480\,\text{Hz}$) while simultaneously tracking slow 0.05 Hz thermal drifts, feeding optimal command trajectories directly into dual actuators.
+            </p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-slate-800 text-[11px] font-mono text-slate-500">
+            Control Latency: $\tau_{\text{cycle}} \le 96\,\mu\text{s}$ executed on radiation-hardened FPGA.
+          </div>
+        </div>
+
+        <!-- Card 4: Actuator Hardware Specifications -->
+        <div class="bg-slate-900/50 border border-slate-800/90 rounded-2xl p-5 flex flex-col justify-between backdrop-blur">
+          <div>
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="text-sm font-semibold text-amber-400 flex items-center gap-2">
+                <span class="w-6 h-6 rounded-md bg-amber-950 border border-amber-800 flex items-center justify-center text-xs">4</span>
+                Concurrent Actuation Hardware Spec
+              </h3>
+              <span class="text-[11px] font-mono text-slate-500">FSM + TEC Integration</span>
+            </div>
+            <p class="text-xs text-slate-300 leading-relaxed">
+              The pointing stabilizer coordinates two physically independent actuation sub-assemblies inside the optical transceiver payload bench:
+            </p>
+            <ul class="text-xs text-slate-300 space-y-2.5 mt-2 font-mono">
+              <li class="flex items-start gap-2 bg-slate-950/70 p-2.5 rounded border border-slate-800">
+                <i data-lucide="check-circle" class="w-4 h-4 text-cyan-400 shrink-0 mt-0.5"></i>
+                <span><b class="text-cyan-300">Piezo Fast-Steering Mirror (FSM):</b> Tip/tilt range $\pm 2.5\,\text{mrad}$, resolution $< 15\,\text{nrad}$, resonance $> 12\,\text{kHz}$, capacitive strain gauge feedback.</span>
+              </li>
+              <li class="flex items-start gap-2 bg-slate-950/70 p-2.5 rounded border border-slate-800">
+                <i data-lucide="check-circle" class="w-4 h-4 text-violet-400 shrink-0 mt-0.5"></i>
+                <span><b class="text-violet-300">Thermoelectric Cooler (TEC):</b> Dual-stage Peltier cooler with $\pm 0.002\,^\circ\text{C}$ thermal stabilization across a $-30\,^\circ\text{C}$ to $+65\,^\circ\text{C}$ baseplate range.</span>
+              </li>
+            </ul>
+          </div>
+          <div class="mt-4 pt-3 border-t border-slate-800 text-[11px] font-mono text-slate-500">
+            Radiation Hardening: Total Ionizing Dose (TID) $> 100\,\text{krad(Si)}$.
+          </div>
+        </div>
+
+      </div>
+
+    </section>
+
+    <!-- ========================================================================= -->
+    <!-- TAB 3: $225,000 NASA SBIR/STTR PROPOSAL & HARDWARE TRANSITION              -->
+    <!-- ========================================================================= -->
+    <section id="viewProposal" class="hidden space-y-6">
+      
+      <!-- Solicitation Alignment Summary Header -->
+      <div class="border border-slate-800 bg-slate-900/60 rounded-2xl p-5 backdrop-blur flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="px-2.5 py-0.5 rounded bg-emerald-950/80 text-emerald-400 border border-emerald-800 text-xs font-mono font-bold">NASA SBIR/STTR PHASE I SOLICITATION</span>
+            <span class="text-xs text-slate-400 font-mono">SCaN Focus Area: S7.01 Deep Space Optical Comm</span>
+          </div>
+          <h2 class="text-lg sm:text-xl font-bold text-white mt-1">OptiJitter Flight Software Architecture & Testbed</h2>
+          <p class="text-xs sm:text-sm text-slate-300 mt-0.5">
+            Total Phase I Award: <b class="text-emerald-400 font-mono">$225,000</b> | Period of Performance: <b class="text-slate-100 font-mono">6 Months</b>
+          </p>
+        </div>
+        <div class="bg-slate-950/80 p-3 rounded-xl border border-slate-800 text-right font-mono text-xs">
+          <div class="text-slate-500 text-[10px]">RESEARCH INSTITUTION PARTNER</div>
+          <div class="text-cyan-400 font-bold">Univ. of Central Florida (UCF) CREOL</div>
+          <div class="text-emerald-400 text-[11px] font-semibold">30.0% STTR Allocation ($67,500)</div>
+        </div>
+      </div>
+
+      <!-- 4 Milestones across Months 1-6 -->
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        
+        <div class="bg-slate-900/50 border border-slate-800/90 rounded-xl p-4 flex flex-col justify-between backdrop-blur">
+          <div>
+            <div class="text-xs font-mono text-cyan-400 font-bold mb-1">MONTHS 1–2</div>
+            <h4 class="text-sm font-semibold text-white">Coupled Trajectory Kinematic Modeling</h4>
+            <p class="text-xs text-slate-400 mt-2 leading-relaxed">
+              Formulate 6-DOF reaction wheel vibration models coupled to InGaAsP diode temperature drift models. Build high-fidelity MATLAB/Simulink and Python state-space benchmarks.
+            </p>
+          </div>
+          <div class="mt-4 pt-2 border-t border-slate-800/80 text-[10px] font-mono text-slate-500">
+            Deliverable: Analytical $(\lambda, a)$ disturbance atlas.
+          </div>
+        </div>
+
+        <div class="bg-slate-900/50 border border-slate-800/90 rounded-xl p-4 flex flex-col justify-between backdrop-blur">
+          <div>
+            <div class="text-xs font-mono text-violet-400 font-bold mb-1">MONTHS 3–4</div>
+            <h4 class="text-sm font-semibold text-white">State Observer Inversion Algorithm</h4>
+            <p class="text-xs text-slate-400 mt-2 leading-relaxed">
+              Synthesize 10 kHz Dual Extended Kalman Filter on Xilinx UltraScale+ Space FPGA. Demonstrate real-time separation of structural harmonics from steady-state thermal gradients.
+            </p>
+          </div>
+          <div class="mt-4 pt-2 border-t border-slate-800/80 text-[10px] font-mono text-slate-500">
+            Deliverable: FPGA bitstream & verification suite.
+          </div>
+        </div>
+
+        <div class="bg-slate-900/50 border border-slate-800/90 rounded-xl p-4 flex flex-col justify-between backdrop-blur">
+          <div>
+            <div class="text-xs font-mono text-emerald-400 font-bold mb-1">MONTH 5</div>
+            <h4 class="text-sm font-semibold text-white">Closed-Loop FSM & TEC Bench Testing</h4>
+            <p class="text-xs text-slate-400 mt-2 leading-relaxed">
+              Hardware-in-the-loop (HIL) testing at UCF CREOL optics chambers. Inject mechanical shake tables up to 500 Hz while cycling thermal baseplates from $-20^\circ\text{C}$ to $+50^\circ\text{C}$.
+            </p>
+          </div>
+          <div class="mt-4 pt-2 border-t border-slate-800/80 text-[10px] font-mono text-slate-500">
+            Deliverable: Measured $< 0.18\,\mu\text{rad}$ jitter lock.
+          </div>
+        </div>
+
+        <div class="bg-slate-900/50 border border-slate-800/90 rounded-xl p-4 flex flex-col justify-between backdrop-blur">
+          <div>
+            <div class="text-xs font-mono text-amber-400 font-bold mb-1">MONTH 6</div>
+            <h4 class="text-sm font-semibold text-white">Phase II Transition Spec & Flight Roadmap</h4>
+            <p class="text-xs text-slate-400 mt-2 leading-relaxed">
+              Deliver Phase I Final Technical Report, spaceflight qualification test matrix, and detailed Phase II proposal ($1.25M) targeting NASA Artemis lunar relay or Mars sample return downlinks.
+            </p>
+          </div>
+          <div class="mt-4 pt-2 border-t border-slate-800/80 text-[10px] font-mono text-slate-500">
+            Deliverable: Phase II flight prototype spec sheet.
+          </div>
+        </div>
+
+      </div>
+
+      <!-- University Subcontract Breakdown & Phase II Transition Facilities -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+        
+        <div class="lg:col-span-6 bg-slate-900/50 border border-slate-800/90 rounded-2xl p-5 backdrop-blur">
+          <h3 class="text-sm font-bold text-slate-100 flex items-center gap-2 mb-3">
+            <i data-lucide="graduation-cap" class="w-4 h-4 text-cyan-400"></i>
+            University of Central Florida (CREOL) Subcontract: $67,500 (30.0%)
+          </h3>
+          <p class="text-xs text-slate-300 leading-relaxed mb-3">
+            UCF’s Center for Research and Education in Optics and Lasers (CREOL) provides world-class space optical laboratories, ultra-high-vacuum thermal chambers, and sub-picometer optical spectrum analyzers.
+          </p>
+          <div class="space-y-2 font-mono text-xs">
+            <div class="flex justify-between p-2 rounded bg-slate-950/70 border border-slate-800">
+              <span class="text-slate-400">Faculty Lead / Co-PI: 1 Summer Month</span>
+              <span class="text-cyan-300 font-semibold">$18,400</span>
+            </div>
+            <div class="flex justify-between p-2 rounded bg-slate-950/70 border border-slate-800">
+              <span class="text-slate-400">Graduate Research Assistant (GRA): 50% Effort (6 Mo)</span>
+              <span class="text-cyan-300 font-semibold">$24,200</span>
+            </div>
+            <div class="flex justify-between p-2 rounded bg-slate-950/70 border border-slate-800">
+              <span class="text-slate-400">Optical Bench Facility Rates & Laser Instrumentation</span>
+              <span class="text-cyan-300 font-semibold">$11,800</span>
+            </div>
+            <div class="flex justify-between p-2 rounded bg-slate-950/70 border border-slate-800">
+              <span class="text-slate-400">Indirect Facilities & Administrative Costs (F&A)</span>
+              <span class="text-cyan-300 font-semibold">$13,100</span>
+            </div>
+            <div class="flex justify-between p-2 rounded bg-cyan-950/40 border border-cyan-800 font-bold">
+              <span class="text-cyan-200">TOTAL UCF SUBCONTRACT:</span>
+              <span class="text-cyan-300">$67,500</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="lg:col-span-6 bg-slate-900/50 border border-slate-800/90 rounded-2xl p-5 backdrop-blur flex flex-col justify-between">
+          <div>
+            <h3 class="text-sm font-bold text-slate-100 flex items-center gap-2 mb-3">
+              <i data-lucide="rocket" class="w-4 h-4 text-emerald-400"></i>
+              Phase II Path to Flight Demonstration ($1,250,000)
+            </h3>
+            <p class="text-xs text-slate-300 leading-relaxed">
+              Upon successful Phase I demonstration, Phase II transitions the technology from TRL-4 to TRL-6 through environmental thermal vacuum (TVAC) and launch vibe testing at NASA Goddard / JPL test facilities:
+            </p>
+            <ul class="text-xs text-slate-300 space-y-2 mt-3 font-mono">
+              <li class="flex items-start gap-2">
+                <i data-lucide="check" class="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5"></i>
+                <span>Direct compatibility with NASA’s Deep Space Optical Communications (DSOC) architecture aboard Psyche and future Mars exploration orbiters.</span>
+              </li>
+              <li class="flex items-start gap-2">
+                <i data-lucide="check" class="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5"></i>
+                <span>Drop-in flight software binary compatible with NASA Core Flight System (cFS) and RTEMS real-time operating systems.</span>
+              </li>
+              <li class="flex items-start gap-2">
+                <i data-lucide="check" class="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5"></i>
+                <span>Space Qualification: Vibration testing to NASA GEVS standards (14.1 g RMS random vibe).</span>
+              </li>
+            </ul>
+          </div>
+          <div class="p-3 bg-emerald-950/30 rounded-xl border border-emerald-800/60 mt-4 text-xs font-mono text-emerald-300 flex items-center justify-between">
+            <span>NASA Target Insertion: Mars Sample Return Orbiter (MSR)</span>
+            <span class="font-bold">TRL 6 by Month 24</span>
+          </div>
+        </div>
+
+      </div>
+
+    </section>
+
+    <!-- ========================================================================= -->
+    <!-- TAB 4: COMMERCIAL & NATIONWIDE ARR BREAKDOWN                               -->
+    <!-- ========================================================================= -->
+    <section id="viewARR" class="hidden space-y-6">
+      
+      <!-- ARR Top Financial Callout -->
+      <div class="border border-slate-800 bg-gradient-to-r from-slate-950 via-slate-900 to-amber-950/30 rounded-2xl p-6 backdrop-blur flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+        <div>
+          <span class="px-2.5 py-0.5 rounded bg-amber-950/80 text-amber-400 border border-amber-800 text-xs font-mono font-bold uppercase tracking-wider">
+            Civil & Commercial Space Telecom ARR Projection
+          </span>
+          <h2 class="text-2xl sm:text-3xl font-extrabold text-white mt-1">
+            $214.2M Mature Nationwide Annual Recurring Revenue
+          </h2>
+          <p class="text-xs sm:text-sm text-slate-300 mt-1 max-w-3xl">
+            Software-defined optical beam stabilization licensable across commercial LEO mega-constellations, civil Earth science orbiters, inter-datacenter free-space optical (FSO) links, and lunar communication corridors.
+          </p>
+        </div>
+        <div class="bg-slate-950/90 border border-amber-500/40 p-4 rounded-xl text-right font-mono shrink-0">
+          <div class="text-[11px] text-slate-400">ENTERPRISE VALUATION (10x MULTIPLE)</div>
+          <div class="text-2xl sm:text-3xl font-extrabold text-amber-400">$2.14 Billion</div>
+          <div class="text-[10px] text-emerald-400 mt-0.5">Deep-Tech Mission-Critical Flight Software</div>
+        </div>
+      </div>
+
+      <!-- ARR Distribution Table -->
+      <div class="bg-slate-900/50 border border-slate-800/90 rounded-2xl overflow-hidden backdrop-blur shadow-xl">
+        <div class="px-5 py-3.5 border-b border-slate-800 flex items-center justify-between">
+          <h3 class="text-sm font-semibold text-white flex items-center gap-2">
+            <i data-lucide="table" class="w-4 h-4 text-amber-400"></i>
+            Commercial Market Sizing & Licensing Breakdown
+          </h3>
+          <span class="text-xs font-mono text-slate-400">Pricing Model: Per-Transceiver Annual Firmware License</span>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs font-mono">
+            <thead class="bg-slate-950/80 text-slate-400 uppercase text-[10px] border-b border-slate-800">
+              <tr>
+                <th class="px-4 py-3">Commercial Vertical</th>
+                <th class="px-4 py-3">Target Application</th>
+                <th class="px-4 py-3">Installed Asset Base</th>
+                <th class="px-4 py-3">Annual License / Unit</th>
+                <th class="px-4 py-3 text-right">Mature Annual Revenue</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-800/60 text-slate-300">
+              <tr class="hover:bg-slate-800/30 transition-colors">
+                <td class="px-4 py-3 font-semibold text-white">Commercial LEO Constellations</td>
+                <td class="px-4 py-3 text-slate-400">Optical Inter-Satellite Links (OISL) for 100 Gbps crosslinks</td>
+                <td class="px-4 py-3 text-cyan-400">12,000 Transceivers</td>
+                <td class="px-4 py-3">$8,500 / yr</td>
+                <td class="px-4 py-3 text-right font-bold text-amber-400">$102.0M</td>
+              </tr>
+              <tr class="hover:bg-slate-800/30 transition-colors">
+                <td class="px-4 py-3 font-semibold text-white">Civil Earth Observation & Weather</td>
+                <td class="px-4 py-3 text-slate-400">Direct-to-Earth raw hyperspectral optical downlinks</td>
+                <td class="px-4 py-3 text-cyan-400">850 Orbiters</td>
+                <td class="px-4 py-3">$25,000 / yr</td>
+                <td class="px-4 py-3 text-right font-bold text-amber-400">$21.2M</td>
+              </tr>
+              <tr class="hover:bg-slate-800/30 transition-colors">
+                <td class="px-4 py-3 font-semibold text-white">Lunar Gateway & Artemis Relay</td>
+                <td class="px-4 py-3 text-slate-400">Cislunar broadband and lunar surface rover backhauls</td>
+                <td class="px-4 py-3 text-cyan-400">160 Terminals</td>
+                <td class="px-4 py-3">$75,000 / yr</td>
+                <td class="px-4 py-3 text-right font-bold text-amber-400">$12.0M</td>
+              </tr>
+              <tr class="hover:bg-slate-800/30 transition-colors">
+                <td class="px-4 py-3 font-semibold text-white">Terrestrial Datacenter FSO Links</td>
+                <td class="px-4 py-3 text-slate-400">Rooftop-to-rooftop atmospheric building crosslinks (urban)</td>
+                <td class="px-4 py-3 text-cyan-400">4,500 Links</td>
+                <td class="px-4 py-3">$12,000 / yr</td>
+                <td class="px-4 py-3 text-right font-bold text-amber-400">$54.0M</td>
+              </tr>
+              <tr class="hover:bg-slate-800/30 transition-colors">
+                <td class="px-4 py-3 font-semibold text-white">High-Altitude Pseudo-Satellites (HAPS)</td>
+                <td class="px-4 py-3 text-slate-400">Stratospheric solar drone internet distribution</td>
+                <td class="px-4 py-3 text-cyan-400">1,250 Terminals</td>
+                <td class="px-4 py-3">$20,000 / yr</td>
+                <td class="px-4 py-3 text-right font-bold text-amber-400">$25.0M</td>
+              </tr>
+              <tr class="bg-amber-950/20 font-bold border-t border-amber-800/50">
+                <td class="px-4 py-3 text-white" colspan="4">TOTAL PROJECTED NATIONWIDE CIVIL ARR:</td>
+                <td class="px-4 py-3 text-right text-base text-amber-300">$214.2M / yr</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Detailed Vertical Deep Dives: Physics & "Why Others Missed This" -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+
+        <!-- Deep Dive 1: LEO Mega Constellations -->
+        <div class="bg-slate-900/50 border border-slate-800/90 rounded-2xl p-5 backdrop-blur flex flex-col justify-between">
+          <div>
+            <div class="flex items-center gap-2 mb-2">
+              <i data-lucide="satellite" class="w-4 h-4 text-cyan-400"></i>
+              <h4 class="text-sm font-bold text-white">Commercial LEO Constellations</h4>
+            </div>
+            <div class="space-y-3 mt-3">
+              <div>
+                <span class="text-[10px] font-mono uppercase tracking-wider text-cyan-400 font-bold">Physics in 1 Sentence:</span>
+                <p class="text-xs text-slate-300 mt-0.5 leading-relaxed">
+                  High-speed solar array slewing and reaction wheel spin accelerations inject continuous 80–300 Hz vibrational harmonics into optical crosslink gimbal mounts.
+                </p>
+              </div>
+              <div>
+                <span class="text-[10px] font-mono uppercase tracking-wider text-rose-400 font-bold">Why Others Missed This (Plain English):</span>
+                <p class="text-xs text-slate-400 mt-0.5 leading-relaxed">
+                  Legacy operators spent millions on heavier mechanical isolators that add launch mass; OptiJitter solves it purely through software DSP feedback into existing piezo mirrors without adding a single gram.
+                </p>
+              </div>
+            </div>
+          </div>
+          <div class="mt-4 pt-3 border-t border-slate-800 font-mono text-[11px] text-slate-400 flex justify-between">
+            <span>ARR Contribution:</span>
+            <span class="text-cyan-400 font-bold">$102.0M</span>
+          </div>
+        </div>
+
+        <!-- Deep Dive 2: Terrestrial Urban Datacenter FSO -->
+        <div class="bg-slate-900/50 border border-slate-800/90 rounded-2xl p-5 backdrop-blur flex flex-col justify-between">
+          <div>
+            <div class="flex items-center gap-2 mb-2">
+              <i data-lucide="building" class="w-4 h-4 text-emerald-400"></i>
+              <h4 class="text-sm font-bold text-white">Terrestrial Datacenter FSO Links</h4>
+            </div>
+            <div class="space-y-3 mt-3">
+              <div>
+                <span class="text-[10px] font-mono uppercase tracking-wider text-emerald-400 font-bold">Physics in 1 Sentence:</span>
+                <p class="text-xs text-slate-300 mt-0.5 leading-relaxed">
+                  Rooftop wind loads flex high-rise buildings at 0.5–2 Hz while direct midday solar radiation shifts transceiver housing temperatures by up to $30^\circ\text{C}$.
+                </p>
+              </div>
+              <div>
+                <span class="text-[10px] font-mono uppercase tracking-wider text-rose-400 font-bold">Why Others Missed This (Plain English):</span>
+                <p class="text-xs text-slate-400 mt-0.5 leading-relaxed">
+                  Competitors treated beam pointing and laser temperature as separate maintenance problems, causing links to drop out every summer afternoon when thermal drift knocked the laser out of optical bandpass filters.
+                </p>
+              </div>
+            </div>
+          </div>
+          <div class="mt-4 pt-3 border-t border-slate-800 font-mono text-[11px] text-slate-400 flex justify-between">
+            <span>ARR Contribution:</span>
+            <span class="text-emerald-400 font-bold">$54.0M</span>
+          </div>
+        </div>
+
+        <!-- Deep Dive 3: Stratospheric HAPS Networks -->
+        <div class="bg-slate-900/50 border border-slate-800/90 rounded-2xl p-5 backdrop-blur flex flex-col justify-between">
+          <div>
+            <div class="flex items-center gap-2 mb-2">
+              <i data-lucide="wind" class="w-4 h-4 text-amber-400"></i>
+              <h4 class="text-sm font-bold text-white">High-Altitude Pseudo-Satellites</h4>
+            </div>
+            <div class="space-y-3 mt-3">
+              <div>
+                <span class="text-[10px] font-mono uppercase tracking-wider text-amber-400 font-bold">Physics in 1 Sentence:</span>
+                <p class="text-xs text-slate-300 mt-0.5 leading-relaxed">
+                  Turbulent stratospheric jet streams buffet lightweight carbon composite airframes while ambient air density plunges to 5% of sea level, crippling convective cooling.
+                </p>
+              </div>
+              <div>
+                <span class="text-[10px] font-mono uppercase tracking-wider text-rose-400 font-bold">Why Others Missed This (Plain English):</span>
+                <p class="text-xs text-slate-400 mt-0.5 leading-relaxed">
+                  Competitors tried to use bulky active chilled liquid loops that depleted the aircraft battery; OptiJitter’s synchronized dual observer keeps lasers locked using fractional-watt thermoelectric pulses.
+                </p>
+              </div>
+            </div>
+          </div>
+          <div class="mt-4 pt-3 border-t border-slate-800 font-mono text-[11px] text-slate-400 flex justify-between">
+            <span>ARR Contribution:</span>
+            <span class="text-amber-400 font-bold">$25.0M</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Executive Call to Action Banner -->
+      <div class="bg-gradient-to-r from-cyan-950/40 via-slate-900 to-indigo-950/40 border border-cyan-800/60 rounded-2xl p-6 text-center space-y-3">
+        <h3 class="text-lg font-bold text-white">Partner with RFWaveCode on SBIR Phase I & Enterprise Licensing</h3>
+        <p class="text-xs sm:text-sm text-slate-300 max-w-2xl mx-auto">
+          OptiJitter is available for immediate Phase I subcontracting, sub-system qualification testing at UCF CREOL, and commercial flight software licensing.
+        </p>
+        <div class="pt-2">
+          <a href="mailto:support@rfwavecode.com" class="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl font-mono text-xs font-bold bg-cyan-500 hover:bg-cyan-400 text-black transition-all shadow-lg shadow-cyan-950">
+            <i data-lucide="mail" class="w-4 h-4"></i>
+            support@rfwavecode.com
+          </a>
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="border-t border-slate-800/80 bg-slate-950/90 text-slate-500 text-xs py-4 px-6 mt-8 font-mono flex flex-col sm:flex-row items-center justify-between gap-3">
+    <div class="flex items-center space-x-2">
+      <i data-lucide="shield" class="w-4 h-4 text-cyan-400"></i>
+      <span>OptiJitter™ NASA SBIR Topic S7.01 Deep Space Optical Communications</span>
+    </div>
+    <div class="flex items-center space-x-4">
+      <span>Firmware: v2.4.1-RTEMS</span>
+      <span>•</span>
+      <span>Inquiries: <a href="mailto:support@rfwavecode.com" class="text-cyan-400 hover:underline">support@rfwavecode.com</a></span>
+    </div>
+  </footer>
+
+  <!-- ========================================================================= -->
+  <!-- JAVASCRIPT LOGIC: SIMULATION, CHARTS, AND OBSERVER DYNAMICS               -->
+  <!-- ========================================================================= -->
+  <script>
+    // Initialize Lucide Icons
+    lucide.createIcons();
+
+    // -------------------------------------------------------------------------
+    // TAB SWITCHING LOGIC WITH MATHJAX & CANVAS INTEGRITY
+    // -------------------------------------------------------------------------
+    const tabMapping = {
+      'sim': { viewId: 'viewSim', btnId: 'tabBtnSim' },
+      'physics': { viewId: 'viewPhysics', btnId: 'tabBtnPhysics' },
+      'proposal': { viewId: 'viewProposal', btnId: 'tabBtnProposal' },
+      'arr': { viewId: 'viewARR', btnId: 'tabBtnARR' }
+    };
+
+    function switchTab(activeKey) {
+      Object.keys(tabMapping).forEach(key => {
+        const view = document.getElementById(tabMapping[key].viewId);
+        const btn = document.getElementById(tabMapping[key].btnId);
+        
+        if (key === activeKey) {
+          view.classList.remove('hidden');
+          btn.className = "flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition-all text-white bg-slate-800 shadow-sm border border-slate-700";
+        } else {
+          view.classList.add('hidden');
+          btn.className = "flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition-all text-slate-400 hover:text-slate-200";
+        }
+      });
+
+      // Typeset MathJax equations when tab is visible
+      if (window.MathJax && window.MathJax.typesetPromise) {
+        window.MathJax.typesetPromise();
+      }
+
+      // Re-render canvas if returning to sim tab
+      if (activeKey === 'sim') {
+        setTimeout(() => {
+          resizeCanvas();
+        }, 50);
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // SIMULATION STATE & PHYSICAL CONSTANTS
+    // -------------------------------------------------------------------------
+    let closedLoopActive = true;
+    let simTime = 0;
+
+    // Environmental disturbance state
+    let wheelRPM = 2400;         // 600 - 6000 RPM
+    let deltaTemp = 0.4;         // -5.0 to +5.0 deg C
+    let r0Atm = 12.0;            // 3.0 to 25.0 cm Fried parameter
+    let bearingFaultActive = false;
+    let thermalSnapActive = false;
+
+    // Dynamic states
+    let currentAccel = 0.08;     // g's
+    let currentWavelength = 1550.02; // nm
+    let pointingErrorUrad = 1.15; // microradians
+    let linkMarginDb = 8.4;      // dB
+    let groundIrradiance = 94.4; // pW/m^2
+    let berValue = 1.2e-7;
+
+    // Historical buffers for telemetry plots
+    const maxHistoryPoints = 30;
+    const timeLabels = Array.from({length: maxHistoryPoints}, (_, i) => `${i}s`);
+    const jitterHistory = new Array(maxHistoryPoints).fill(1.2);
+    const snrHistory = new Array(maxHistoryPoints).fill(8.4);
+
+    // Trajectory scatter buffer for Phase-Space Chart (Chart.js)
+    const maxTrajPoints = 25;
+    const trajectoryData = [];
+
+    // -------------------------------------------------------------------------
+    // CANVAS RENDERING (DEEP SPACE OPTICAL BENCH & EARTH COLLECTOR)
+    // -------------------------------------------------------------------------
+    const canvas = document.getElementById('opticsCanvas');
+    const ctx = canvas.getContext('2d');
+
+    function resizeCanvas() {
+      const rect = canvas.getBoundingClientRect();
+      const w = rect.width || 600;
+      const h = rect.height || 340;
+      canvas.width = w * window.devicePixelRatio;
+      canvas.height = h * window.devicePixelRatio;
+      ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    // Beam particle simulation
+    const particles = [];
+    for (let i = 0; i < 40; i++) {
+      particles.push({
+        x: Math.random() * 500,
+        y: Math.random() * 300,
+        speed: 3 + Math.random() * 5,
+        size: 1 + Math.random() * 2,
+        alpha: 0.2 + Math.random() * 0.7
+      });
+    }
+
+    function renderCanvas() {
+      const rect = canvas.getBoundingClientRect();
+      const w = rect.width;
+      const h = rect.height;
+
+      ctx.clearRect(0, 0, w, h);
+
+      // Deep space background with subtle grid
+      ctx.fillStyle = '#02050e';
+      ctx.fillRect(0, 0, w, h);
+
+      ctx.strokeStyle = '#0f172a';
+      ctx.lineWidth = 1;
+      const gridSize = 30;
+      for (let x = 0; x < w; x += gridSize) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, h);
+        ctx.stroke();
+      }
+      for (let y = 0; y < h; y += gridSize) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(w, y);
+        ctx.stroke();
+      }
+
+      // 1. Spacecraft Optical Bench (Left side)
+      const benchX = 40;
+      const benchY = h / 2;
+
+      // Laser Housing / Bench Mount
+      ctx.fillStyle = '#0f172a';
+      ctx.strokeStyle = '#334155';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.roundRect(benchX - 25, benchY - 45, 50, 90, 8);
+      ctx.fill();
+      ctx.stroke();
+
+      // Piezo FSM Mirror
+      const fsmDeflection = closedLoopActive ? (pointingErrorUrad * 0.05) : (pointingErrorUrad * 0.35);
+      ctx.save();
+      ctx.translate(benchX + 25, benchY);
+      ctx.rotate(fsmDeflection * Math.PI / 180);
+      ctx.fillStyle = '#06b6d4';
+      ctx.shadowColor = '#06b6d4';
+      ctx.shadowBlur = 10;
+      ctx.fillRect(-2, -22, 6, 44);
+      ctx.restore();
+
+      // 2. Earth Target Collector (Right side)
+      const targetX = w - 70;
+      const targetY = h / 2;
+
+      // Outer Ground Receiver Reticle / Telescope Ring
+      ctx.strokeStyle = '#1e293b';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(targetX, targetY, 48, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Narrowband Optical Filter Passband Zone
+      ctx.strokeStyle = closedLoopActive ? 'rgba(16, 185, 129, 0.4)' : 'rgba(244, 63, 94, 0.3)';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.arc(targetX, targetY, 24, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Crosshairs
+      ctx.strokeStyle = '#334155';
+      ctx.beginPath();
+      ctx.moveTo(targetX - 55, targetY);
+      ctx.lineTo(targetX + 55, targetY);
+      ctx.moveTo(targetX, targetY - 55);
+      ctx.lineTo(targetX, targetY + 55);
+      ctx.stroke();
+
+      // 3. Laser Beam Propagation from FSM to Earth Target
+      const spotOffsetY = (pointingErrorUrad - 1.0) * (closedLoopActive ? 3.5 : 18.0) * Math.sin(simTime * 8);
+      const spotOffsetX = (currentAccel - 0.08) * (closedLoopActive ? 4.0 : 25.0) * Math.cos(simTime * 6);
+      const currentSpotX = targetX + spotOffsetX;
+      const currentSpotY = targetY + spotOffsetY;
+
+      // Draw Laser Beam Conical Polygon
+      const gradient = ctx.createLinearGradient(benchX + 25, benchY, targetX, targetY);
+      if (closedLoopActive) {
+        gradient.addColorStop(0, 'rgba(6, 182, 212, 0.85)');
+        gradient.addColorStop(0.5, 'rgba(56, 189, 248, 0.4)');
+        gradient.addColorStop(1, 'rgba(16, 185, 129, 0.6)');
+      } else {
+        gradient.addColorStop(0, 'rgba(244, 63, 94, 0.85)');
+        gradient.addColorStop(0.5, 'rgba(239, 68, 68, 0.3)');
+        gradient.addColorStop(1, 'rgba(244, 63, 94, 0.15)');
+      }
+
+      ctx.beginPath();
+      ctx.moveTo(benchX + 25, benchY - 4);
+      ctx.lineTo(currentSpotX, currentSpotY - 14);
+      ctx.lineTo(currentSpotX, currentSpotY + 14);
+      ctx.lineTo(benchX + 25, benchY + 4);
+      ctx.closePath();
+      ctx.fillStyle = gradient;
+      ctx.fill();
+
+      // Central core laser ray
+      ctx.strokeStyle = closedLoopActive ? '#e0f2fe' : '#fecdd3';
+      ctx.lineWidth = 1.5;
+      ctx.shadowColor = closedLoopActive ? '#38bdf8' : '#f43f5e';
+      ctx.shadowBlur = 12;
+      ctx.beginPath();
+      ctx.moveTo(benchX + 25, benchY);
+      ctx.lineTo(currentSpotX, currentSpotY);
+      ctx.stroke();
+      ctx.shadowBlur = 0; // reset
+
+      // 4. Ground Target Arrival Spot (Airy Disk)
+      const spotRadius = closedLoopActive ? 7 : 18;
+      ctx.fillStyle = closedLoopActive ? '#10b981' : '#f43f5e';
+      ctx.shadowColor = closedLoopActive ? '#10b981' : '#f43f5e';
+      ctx.shadowBlur = 15;
+      ctx.beginPath();
+      ctx.arc(currentSpotX, currentSpotY, spotRadius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+
+      // Small text badge above spot
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '9px JetBrains Mono';
+      ctx.fillText(`λ: ${currentWavelength.toFixed(3)} nm`, currentSpotX - 35, currentSpotY - 22);
+
+      // Micro-photons streaming through the beam
+      particles.forEach(p => {
+        p.x += p.speed;
+        if (p.x > targetX) {
+          p.x = benchX + 30;
+          p.y = benchY + (Math.random() - 0.5) * 8;
+        }
+        // Interpolate Y along the beam center
+        const t = (p.x - benchX) / (targetX - benchX);
+        const beamCenterY = benchY + t * (currentSpotY - benchY);
+        const spread = (t * 12);
+        
+        ctx.fillStyle = closedLoopActive ? `rgba(224, 242, 254, ${p.alpha})` : `rgba(254, 205, 211, ${p.alpha})`;
+        ctx.beginPath();
+        ctx.arc(p.x, beamCenterY + (Math.random() - 0.5) * spread, p.size, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+
+    // -------------------------------------------------------------------------
+    // CHART.JS INITIALIZATION (PHASE-SPACE & SECONDARY TIME-SERIES)
+    // -------------------------------------------------------------------------
+    
+    // 1. Primary Diagnostic: Wavelength vs. Acceleration Phase-Space
+    const ctxPhase = document.getElementById('phaseSpaceChart').getContext('2d');
+    const phaseSpaceChart = new Chart(ctxPhase, {
+      type: 'scatter',
+      data: {
+        datasets: [
+          // Safe Nominal Operational Corridor
+          {
+            label: 'Safe Passband Corridor',
+            data: [
+              { x: 0.0, y: 1549.94 }, { x: 0.40, y: 1549.94 },
+              { x: 0.40, y: 1550.06 }, { x: 0.0, y: 1550.06 }
+            ],
+            showLine: true,
+            borderColor: 'rgba(6, 182, 212, 0.4)',
+            backgroundColor: 'rgba(6, 182, 212, 0.06)',
+            borderDash: [5, 5],
+            fill: true,
+            pointRadius: 0
+          },
+          // Tripwire Hazard Boundary Zone
+          {
+            label: 'Out-of-Band / Jitter Hazard',
+            data: [
+              { x: 0.40, y: 1549.80 }, { x: 0.80, y: 1549.80 },
+              { x: 0.80, y: 1550.20 }, { x: 0.40, y: 1550.20 }
+            ],
+            showLine: true,
+            borderColor: 'rgba(244, 63, 94, 0.5)',
+            backgroundColor: 'rgba(244, 63, 94, 0.08)',
+            borderDash: [3, 3],
+            fill: true,
+            pointRadius: 0
+          },
+          // Live Dynamic Trajectory Points
+          {
+            label: 'System Trajectory (λ, a)',
+            data: trajectoryData,
+            borderColor: '#a855f7',
+            backgroundColor: '#c084fc',
+            pointRadius: (ctx) => {
+              const index = ctx.dataIndex;
+              const count = ctx.dataset.data.length;
+              return index === count - 1 ? 7 : 3;
+            },
+            pointHoverRadius: 8,
+            showLine: true,
+            tension: 0.3
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        scales: {
+          x: {
+            title: {
+              display: true,
+              text: 'Structural Acceleration a (g RMS)',
+              color: '#94a3b8',
+              font: { family: 'JetBrains Mono', size: 11 }
+            },
+            min: 0.0,
+            max: 0.75,
+            grid: { color: '#1e293b' },
+            ticks: { color: '#64748b', font: { family: 'JetBrains Mono' } }
+          },
+          y: {
+            title: {
+              display: true,
+              text: 'Wavelength λ (nm)',
+              color: '#94a3b8',
+              font: { family: 'JetBrains Mono', size: 11 }
+            },
+            min: 1549.85,
+            max: 1550.18,
+            grid: { color: '#1e293b' },
+            ticks: { color: '#64748b', font: { family: 'JetBrains Mono' } }
+          }
+        },
+        plugins: {
+          legend: {
+            display: false
+          },
+          tooltip: {
+            backgroundColor: '#020617',
+            borderColor: '#334155',
+            borderWidth: 1,
+            titleFont: { family: 'JetBrains Mono' },
+            bodyFont: { family: 'JetBrains Mono' }
+          }
+        }
+      }
+    });
+
+    // 2. Secondary Time-Series: Jitter History
+    const ctxJitter = document.getElementById('jitterHistoryChart').getContext('2d');
+    const jitterHistoryChart = new Chart(ctxJitter, {
+      type: 'line',
+      data: {
+        labels: timeLabels,
+        datasets: [{
+          label: 'Beam Jitter (μrad)',
+          data: jitterHistory,
+          borderColor: '#06b6d4',
+          backgroundColor: 'rgba(6, 182, 212, 0.1)',
+          fill: true,
+          tension: 0.35,
+          pointRadius: 0,
+          borderWidth: 1.8
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        scales: {
+          x: { display: false },
+          y: {
+            min: 0,
+            max: 6.0,
+            grid: { color: '#1e293b' },
+            ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 9 }, stepSize: 1.5 }
+          }
+        },
+        plugins: { legend: { display: false } }
+      }
+    });
+
+    // 3. Secondary Time-Series: Link SNR History
+    const ctxSNR = document.getElementById('snrHistoryChart').getContext('2d');
+    const snrHistoryChart = new Chart(ctxSNR, {
+      type: 'line',
+      data: {
+        labels: timeLabels,
+        datasets: [{
+          label: 'Link Margin (dB)',
+          data: snrHistory,
+          borderColor: '#10b981',
+          backgroundColor: 'rgba(16, 185, 129, 0.1)',
+          fill: true,
+          tension: 0.35,
+          pointRadius: 0,
+          borderWidth: 1.8
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        scales: {
+          x: { display: false },
+          y: {
+            min: -4.0,
+            max: 14.0,
+            grid: { color: '#1e293b' },
+            ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 9 }, stepSize: 4 }
+          }
+        },
+        plugins: { legend: { display: false } }
+      }
+    });
+
+    // -------------------------------------------------------------------------
+    // MAIN PHYSICS STEP & DUAL OBSERVER INVERSION ALGORITHM
+    // -------------------------------------------------------------------------
+    function stepSimulation() {
+      simTime += 0.05;
+
+      // 1. Raw Environmental Disturbance Generator
+      // Reaction wheel high-frequency harmonic acceleration
+      const fWheelHz = wheelRPM / 60.0;
+      let rawAccel = 0.05 + 0.04 * (wheelRPM / 3000.0) + 0.02 * Math.sin(2 * Math.PI * fWheelHz * simTime);
+      if (bearingFaultActive) {
+        rawAccel += 0.35 + 0.15 * Math.sin(simTime * 28.0);
+      }
+
+      // Laser Diode thermal drift (InGaAsP coefficient ~ 0.10 nm / deg C)
+      let rawThermalWavelength = 1550.00 + deltaTemp * 0.10;
+      if (thermalSnapActive) {
+        rawThermalWavelength += 0.12 * Math.sin(simTime * 1.5);
+      }
+
+      // 2. Closed-Loop Inversion (OptiJitter DSP Execution)
+      if (closedLoopActive) {
+        // Fast-Steering Mirror piezo cancels 92% of jitter micro-vibration
+        currentAccel = 0.04 + rawAccel * 0.18;
+        pointingErrorUrad = 0.85 + currentAccel * 3.8 + (15.0 / r0Atm) * 0.15;
+
+        // Thermoelectric Cooler servo clamps wavelength inside +/- 0.015 nm of 1550.00 nm
+        const residualWavelengthShift = (rawThermalWavelength - 1550.00) * 0.06;
+        currentWavelength = 1550.00 + residualWavelengthShift + 0.008 * Math.sin(simTime * 3);
+
+        // Ground filter transmission calculation
+        const filterFWHM = 0.12; // nm
+        const deltaLambda = Math.abs(currentWavelength - 1550.00);
+        const filterTransmission = 1.0 / (1.0 + Math.pow((2 * deltaLambda) / filterFWHM, 2));
+
+        // Pointing attenuation
+        const divAngle = 8.5; // microrad beam width
+        const pointingLoss = Math.exp(-2.0 * Math.pow(pointingErrorUrad / divAngle, 2));
+
+        linkMarginDb = 10.5 * filterTransmission * pointingLoss;
+        groundIrradiance = 100.0 * filterTransmission * pointingLoss;
+        berValue = Math.max(1.0e-9, 1.0e-3 * Math.exp(-linkMarginDb * 0.9));
+
+      } else {
+        // Open-Loop: Full vibrations and thermal drift impact link
+        currentAccel = rawAccel;
+        pointingErrorUrad = 1.2 + rawAccel * 8.5 + (20.0 / r0Atm) * 0.45;
+        currentWavelength = rawThermalWavelength;
+
+        const filterFWHM = 0.12;
+        const deltaLambda = Math.abs(currentWavelength - 1550.00);
+        const filterTransmission = 1.0 / (1.0 + Math.pow((2 * deltaLambda) / filterFWHM, 2));
+
+        const divAngle = 8.5;
+        const pointingLoss = Math.exp(-2.0 * Math.pow(pointingErrorUrad / divAngle, 2));
+
+        linkMarginDb = Math.max(-3.5, 10.5 * filterTransmission * pointingLoss - 2.5);
+        groundIrradiance = Math.max(1.5, 100.0 * filterTransmission * pointingLoss);
+        berValue = Math.min(0.25, 1.0e-1 * Math.exp(-Math.max(0, linkMarginDb) * 0.6));
+      }
+
+      // Update Phase-Space Trajectory History
+      trajectoryData.push({ x: Number(currentAccel.toFixed(3)), y: Number(currentWavelength.toFixed(3)) });
+      if (trajectoryData.length > maxTrajPoints) {
+        trajectoryData.shift();
+      }
+
+      // Update UI Telemetry Numbers
+      document.getElementById('metricAccel').innerText = `${currentAccel.toFixed(3)} g`;
+      document.getElementById('metricWavelength').innerText = `${currentWavelength.toFixed(3)} nm`;
+      document.getElementById('metricPointing').innerText = `${pointingErrorUrad.toFixed(2)} μrad`;
+      document.getElementById('metricIrradiance').innerText = `${groundIrradiance.toFixed(1)} pW/m²`;
+
+      document.getElementById('canvasJitterVal').innerText = `${pointingErrorUrad.toFixed(2)} μrad RMS`;
+      const couplingPct = Math.min(99.4, (groundIrradiance / 100.0) * 100.0);
+      document.getElementById('canvasCouplingVal').innerText = `${couplingPct.toFixed(1)}%`;
+
+      document.getElementById('liveJitterTimeVal').innerText = `${pointingErrorUrad.toFixed(2)} μrad`;
+      document.getElementById('liveSNRTimeVal').innerText = `${linkMarginDb >= 0 ? '+' : ''}${linkMarginDb.toFixed(1)} dB`;
+
+      document.getElementById('topBER').innerText = berValue < 1e-4 ? berValue.toExponential(1) : berValue.toFixed(4);
+      const dataRateMbps = Math.max(0, Math.min(267.4, 267.4 * (linkMarginDb / 8.5))).toFixed(1);
+      document.getElementById('topDataRate').innerText = `${dataRateMbps} Mbps`;
+
+      // Status Badges & Alerts
+      const rxBadge = document.getElementById('rxLockBadge');
+      const trajBadge = document.getElementById('trajStateBadge');
+
+      if (linkMarginDb > 3.0 && Math.abs(currentWavelength - 1550.00) <= 0.06) {
+        rxBadge.className = "flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-emerald-950/80 text-emerald-400 border border-emerald-800";
+        rxBadge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span><span class="font-bold">GROUND RX: LOCKED</span>`;
+        trajBadge.className = "text-[10px] font-mono font-semibold px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800";
+        trajBadge.innerText = "NOMINAL TRACK";
+      } else if (linkMarginDb > 0.0) {
+        rxBadge.className = "flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-amber-950/80 text-amber-400 border border-amber-800";
+        rxBadge.innerHTML = `<span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span><span class="font-bold">LINK MARGIN LOW</span>`;
+        trajBadge.className = "text-[10px] font-mono font-semibold px-2 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-800";
+        trajBadge.innerText = "MARGIN DEGRADED";
+      } else {
+        rxBadge.className = "flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-rose-950/80 text-rose-400 border border-rose-800 animate-pulse";
+        rxBadge.innerHTML = `<span class="w-2 h-2 rounded-full bg-rose-500"></span><span class="font-bold">RX LOCK LOST</span>`;
+        trajBadge.className = "text-[10px] font-mono font-semibold px-2 py-0.5 rounded bg-rose-950 text-rose-300 border border-rose-800 animate-pulse";
+        trajBadge.innerText = "HAZARD EXCURSION";
+      }
+
+      // Draw optics canvas
+      renderCanvas();
+    }
+
+    // Secondary Chart Updater (throttled every 400ms to preserve UI responsiveness)
+    function updateTelemetryCharts() {
+      jitterHistory.push(Number(pointingErrorUrad.toFixed(2)));
+      jitterHistory.shift();
+
+      snrHistory.push(Number(linkMarginDb.toFixed(1)));
+      snrHistory.shift();
+
+      jitterHistoryChart.update();
+      snrHistoryChart.update();
+      phaseSpaceChart.update();
+    }
+
+    // -------------------------------------------------------------------------
+    // USER CONTROLS, INJECTIONS & SLIDERS
+    // -------------------------------------------------------------------------
+    function toggleClosedLoop() {
+      closedLoopActive = !closedLoopActive;
+      const btn = document.getElementById('toggleLoopBtn');
+      const text = document.getElementById('loopStatusText');
+
+      if (closedLoopActive) {
+        btn.className = "w-full sm:w-auto px-4 py-2 rounded-lg text-xs font-mono font-bold flex items-center justify-center gap-2 transition-all bg-cyan-600 hover:bg-cyan-500 text-black shadow-lg shadow-cyan-950";
+        text.innerText = "CLOSED-LOOP CONTROL: ACTIVE";
+      } else {
+        btn.className = "w-full sm:w-auto px-4 py-2 rounded-lg text-xs font-mono font-bold flex items-center justify-center gap-2 transition-all bg-rose-700 hover:bg-rose-600 text-white shadow-lg shadow-rose-950 animate-pulse";
+        text.innerText = "OPEN-LOOP: OFF (UNSTABILIZED)";
+      }
+    }
+
+    function updateDisturbances() {
+      wheelRPM = parseFloat(document.getElementById('sliderWheel').value);
+      deltaTemp = parseFloat(document.getElementById('sliderThermal').value);
+      r0Atm = parseFloat(document.getElementById('sliderAtm').value);
+
+      document.getElementById('sliderWheelVal').innerText = `${wheelRPM.toLocaleString()} RPM`;
+      document.getElementById('sliderThermalVal').innerText = `${deltaTemp >= 0 ? '+' : ''}${deltaTemp.toFixed(1)} °C`;
+      document.getElementById('sliderAtmVal').innerText = `${r0Atm.toFixed(1)} cm`;
+    }
+
+    function resetSliders() {
+      document.getElementById('sliderWheel').value = 2400;
+      document.getElementById('sliderThermal').value = 0.4;
+      document.getElementById('sliderAtm').value = 12.0;
+      bearingFaultActive = false;
+      thermalSnapActive = false;
+      closedLoopActive = true;
+      document.getElementById('toggleLoopBtn').className = "w-full sm:w-auto px-4 py-2 rounded-lg text-xs font-mono font-bold flex items-center justify-center gap-2 transition-all bg-cyan-600 hover:bg-cyan-500 text-black shadow-lg shadow-cyan-950";
+      document.getElementById('loopStatusText').innerText = "CLOSED-LOOP CONTROL: ACTIVE";
+      updateDisturbances();
+    }
+
+    function injectWheelFault() {
+      bearingFaultActive = true;
+      document.getElementById('sliderWheel').value = 5200;
+      updateDisturbances();
+      setTimeout(() => {
+        bearingFaultActive = false;
+      }, 7000);
+    }
+
+    function injectThermalSnap() {
+      thermalSnapActive = true;
+      document.getElementById('sliderThermal').value = 3.8;
+      updateDisturbances();
+      setTimeout(() => {
+        thermalSnapActive = false;
+      }, 8000);
+    }
+
+    // -------------------------------------------------------------------------
+    // SYSTEM INITIALIZATION & LOOPS
+    // -------------------------------------------------------------------------
+    window.onload = function() {
+      // Step simulation every 50ms (20 Hz)
+      setInterval(stepSimulation, 50);
+
+      // Refresh Chart.js curves every 350ms
+      setInterval(updateTelemetryCharts, 350);
+
+      // Initial MathJax render
+      if (window.MathJax && window.MathJax.typesetPromise) {
+        window.MathJax.typesetPromise();
+      }
+    };
+  </script>
+</body>
+</html>
